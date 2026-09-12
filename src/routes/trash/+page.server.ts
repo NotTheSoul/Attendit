@@ -1,9 +1,9 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { getClassBackend, listClassesBackendAsync, setClassDeletedBackend } from '$lib/server/class-store.js';
-import { setStudentDeletedBackend } from '$lib/server/roster-store.js';
-import { setSubjectDeletedBackend } from '$lib/server/subject-store.js';
-import { setSessionDeletedBackend } from '$lib/server/session-store.js';
+import { getClassBackend, hardDeleteClassBackend, listClassesBackendAsync, setClassDeletedBackend } from '$lib/server/class-store.js';
+import { hardDeleteStudentBackend, setStudentDeletedBackend } from '$lib/server/roster-store.js';
+import { hardDeleteSubjectBackend, setSubjectDeletedBackend } from '$lib/server/subject-store.js';
+import { hardDeleteSessionBackend, setSessionDeletedBackend } from '$lib/server/session-store.js';
 import { localDb } from '$lib/server/local-db.js';
 
 export type TrashGroup =
@@ -97,5 +97,26 @@ export const actions: Actions = {
 			return fail(400, { error: (e as Error).message });
 		}
 		return { restored: true };
+	},
+
+	purgeItem: async ({ request, locals }) => {
+		if (!locals.user) throw redirect(303, '/auth/sign-in');
+		const form = await request.formData();
+		const kind = String(form.get('kind') ?? '');
+		const classId = String(form.get('classId') ?? '');
+		const id = String(form.get('id') ?? '');
+		if (String(form.get('confirm') ?? '') !== 'DELETE') {
+			return fail(400, { error: 'Type DELETE to confirm permanent removal.' });
+		}
+		try {
+			if (kind === 'class') await hardDeleteClassBackend(locals, locals.user.id, id);
+			else if (kind === 'student') await hardDeleteStudentBackend(locals, locals.user.id, classId, id);
+			else if (kind === 'subject') await hardDeleteSubjectBackend(locals, locals.user.id, classId, id);
+			else if (kind === 'session') await hardDeleteSessionBackend(locals, locals.user.id, classId, id);
+			else return fail(400, { error: 'Unknown item type.' });
+		} catch (e) {
+			return fail(400, { error: (e as Error).message });
+		}
+		return { purged: true };
 	}
 };

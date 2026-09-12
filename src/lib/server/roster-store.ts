@@ -206,6 +206,30 @@ export async function setStudentDeletedBackend(
 	if ((count ?? 0) === 0) throw new Error('Student not found.');
 }
 
+/** Permanent delete (responses cascade). No recovery. */
+export async function hardDeleteStudentBackend(
+	locals: Locals,
+	ownerId: string,
+	classId: string,
+	studentId: string
+): Promise<void> {
+	await ownClass(locals, ownerId, classId);
+	if (isLocal(locals)) {
+		const info = localDb()
+			.prepare(`DELETE FROM students WHERE id = ? AND class_id = ?`)
+			.run(studentId, classId);
+		if (info.changes === 0) throw new Error('Student not found.');
+		return;
+	}
+	const { error, count } = await locals
+		.supabase!.from('students')
+		.delete({ count: 'exact' })
+		.eq('id', studentId)
+		.eq('class_id', classId);
+	if (error) throw new Error(error.message);
+	if ((count ?? 0) === 0) throw new Error('Student not found.');
+}
+
 export type ImportResult = {
 	added: number;
 	skipped: number;

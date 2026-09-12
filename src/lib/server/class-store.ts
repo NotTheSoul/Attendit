@@ -205,6 +205,23 @@ export async function setClassDeletedBackend(
 	if (error) throw new Error(error.message);
 }
 
+/** Permanent delete. Cascades to students, subjects, sessions, responses.
+ *  No recovery — the Trash UI must confirm twice. */
+export async function hardDeleteClassBackend(
+	locals: Locals,
+	ownerId: string,
+	classId: string
+): Promise<void> {
+	const current = await getClassBackend(locals, ownerId, classId);
+	if (!current) throw new Error('Class not found.');
+	if (isLocal(locals)) {
+		localDb().prepare(`DELETE FROM classes WHERE id = ?`).run(classId);
+		return;
+	}
+	const { error } = await locals.supabase!.from('classes').delete().eq('id', classId).eq('owner_id', ownerId);
+	if (error) throw new Error(error.message);
+}
+
 export async function regenerateSlugBackend(
 	locals: Locals,
 	ownerId: string,

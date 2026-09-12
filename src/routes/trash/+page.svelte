@@ -3,10 +3,12 @@
 	import { invalidateAll } from '$app/navigation';
 
 	let { data, form } = $props();
+	let armingId: string | null = $state(null);
 
 	const refresh = () => {
 		return async ({ update }: { update: () => Promise<void> }) => {
 			await update();
+			armingId = null;
 			await invalidateAll();
 		};
 	};
@@ -32,6 +34,9 @@
 
 	{#if (form?.error)}
 		<p class="error" role="alert">{form.error}</p>
+	{/if}
+	{#if (form?.purged)}
+		<p class="notice" role="status">Permanently deleted. There is no undo.</p>
 	{/if}
 
 	{#if (total === 0)}
@@ -61,6 +66,20 @@
 									{/if}
 									<button class="btn btn-sm" type="submit" aria-label="Restore {item.label}">Restore</button>
 								</form>
+								{#if (armingId === item.id)}
+									<form method="POST" action="?/purgeItem" use:enhance={refresh} class="purge-form">
+										<input type="hidden" name="id" value={item.id} />
+										<input type="hidden" name="kind" value={item.kind} />
+										<input type="hidden" name="classId" value={item.classId} />
+										<input type="text" name="confirm" required maxlength={6} placeholder="Type DELETE" aria-label="Type DELETE to confirm permanent removal" />
+										<span class="purge-btns">
+											<button class="btn btn-sm btn-danger-fill" type="submit">Purge</button>
+											<button class="btn btn-sm" type="button" onclick={() => (armingId = null)}>Keep</button>
+										</span>
+									</form>
+								{:else}
+									<button class="btn btn-sm btn-danger" type="button" onclick={() => (armingId = item.id)} aria-label="Delete {item.label} forever">Delete forever</button>
+								{/if}
 							</li>
 						{/each}
 					</ul>
@@ -83,4 +102,12 @@
 	.t-main { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 	.t-name { font-weight: 600; }
 	.t-meta { color: var(--muted); font-size: 0.88rem; }
+	.btn-danger { color: #f2b8b8; }
+	.purge-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex-basis: 100%; margin-top: 4px; }
+	.purge-form input[type='text'] { background: var(--bg); border: 1px solid #6e2b2b; border-radius: var(--shape-s); color: var(--text); font: inherit; min-height: 44px; padding: 0 12px; width: 150px; }
+	.purge-form input:focus { border-color: #f2b8b8; outline: none; }
+	.purge-btns { display: flex; gap: 8px; }
+	.btn-danger-fill { background: #5c1a1a; border: 1px solid #8a2f2f; color: #ffd9d9; }
+	.btn-danger-fill:hover { border-color: #f2b8b8; }
+	.notice { background: #0f2a1e; border: 1px solid var(--accent-dim); color: var(--accent); border-radius: var(--shape-s); padding: 10px 12px; font-size: 0.9rem; }
 </style>

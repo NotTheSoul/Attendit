@@ -117,6 +117,30 @@ export async function updateSubjectBackend(
 	return data as SubjectRecord;
 }
 
+/** Permanent delete (sessions referencing it keep NULL subject). No recovery. */
+export async function hardDeleteSubjectBackend(
+	locals: Locals,
+	ownerId: string,
+	classId: string,
+	subjectId: string
+): Promise<void> {
+	await ownClass(locals, ownerId, classId);
+	if (isLocal(locals)) {
+		const info = localDb()
+			.prepare(`DELETE FROM subjects WHERE id = ? AND class_id = ?`)
+			.run(subjectId, classId);
+		if (info.changes === 0) throw new Error('Subject not found.');
+		return;
+	}
+	const { error, count } = await locals
+		.supabase!.from('subjects')
+		.delete({ count: 'exact' })
+		.eq('id', subjectId)
+		.eq('class_id', classId);
+	if (error) throw new Error(error.message);
+	if ((count ?? 0) === 0) throw new Error('Subject not found.');
+}
+
 export async function setSubjectDeletedBackend(
 	locals: Locals,
 	ownerId: string,

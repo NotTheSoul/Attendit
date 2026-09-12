@@ -234,6 +234,24 @@ export async function setSessionDeletedBackend(
 	if (error) throw new Error(error.message);
 }
 
+/** Permanent delete (responses cascade). Refuses live sessions. No recovery. */
+export async function hardDeleteSessionBackend(
+	locals: Locals,
+	ownerId: string,
+	classId: string,
+	sessionId: string
+): Promise<void> {
+	const s = await getSessionBackend(locals, ownerId, classId, sessionId);
+	if (!s) throw new Error('Session not found.');
+	if (s.status === 'active') throw new Error('Close the live session first.');
+	if (isLocal(locals)) {
+		localDb().prepare(`DELETE FROM sessions WHERE id = ?`).run(sessionId);
+		return;
+	}
+	const { error } = await locals.supabase!.from('sessions').delete().eq('id', sessionId);
+	if (error) throw new Error(error.message);
+}
+
 export async function closeSessionBackend(
 	locals: Locals,
 	ownerId: string,
