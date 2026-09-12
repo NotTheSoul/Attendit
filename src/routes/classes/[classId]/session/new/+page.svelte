@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { goto, invalidateAll } from '$app/navigation';
-	import type { ActionResult } from '@sveltejs/kit';
+	import { invalidateAll } from '$app/navigation';
 	import ClassTabs from '$lib/components/ClassTabs.svelte';
 
 	let { data, form } = $props();
@@ -36,18 +35,12 @@
 		<h2 id="cfg-h">Session setup</h2>
 		<form method="POST" action="?/start" use:enhance={() => {
 			starting = true;
-			return async ({ update, result }: { update: () => Promise<void>; result: ActionResult }) => {
+			return async ({ update }) => {
 				try {
-					await update();
-					if (result.type === 'success') {
-						const started = (result.data as { started?: { id?: string } } | null)?.started;
-						if (started?.id) {
-							await invalidateAll();
-							await goto(`/classes/${cls.id}/session/${started.id}`);
-							return;
-						}
-					}
+					// Server redirects to the host page on success;
+					// update() follows it. Invalidate first so caches are fresh.
 					await invalidateAll();
+					await update();
 				} finally {
 					starting = false;
 				}

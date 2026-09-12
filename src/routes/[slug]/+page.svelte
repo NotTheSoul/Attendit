@@ -181,25 +181,6 @@
 		}
 	}
 
-	async function scanFile(file: File | undefined) {
-		if (!file) return;
-		scanError = null;
-		const { Html5Qrcode } = await import('html5-qrcode');
-		try {
-			const tmp = new Html5Qrcode('qr-file-slot');
-			const text = await tmp.scanFile(file, true);
-			await tmp.clear();
-			const t = tokenFromUrl(text);
-			if (!t) {
-				scanError = 'That image is not an Attendit session code.';
-				return;
-			}
-			qrToken = t;
-		} catch {
-			scanError = 'Could not read a QR from that image. Try the camera or type the code.';
-		}
-	}
-
 	async function submit() {
 		if (!student || !canSubmit) return;
 		if (!qrMode && !loc) return;
@@ -353,16 +334,6 @@
 					<button class="btn btn-sm" type="button" onclick={() => void stopScan()}>Cancel scan</button>
 				{/if}
 				{#if (scanError)}<p class="error" role="alert">{scanError}</p>{/if}
-				<label class="file-fallback">
-					<span>No camera? Upload a photo of the QR instead:</span>
-					<input
-						type="file"
-						accept="image/*"
-						capture="environment"
-						onchange={(e) => void scanFile(e.currentTarget.files?.[0])}
-					/>
-				</label>
-				<div id="qr-file-slot" class="hidden-slot" aria-hidden="true"></div>
 			</div>
 			{:else}
 			<p class="muted qr-note">QR scanned — no code, no location needed. Confirm it's you above.</p>
@@ -407,9 +378,6 @@
 	#qr-reader { width: 100%; border: 1px solid var(--border); border-radius: var(--shape-m); overflow: hidden; background: #000; }
 	#qr-reader :global(video) { width: 100%; display: block; }
 	#qr-reader :global(img) { max-width: 100%; }
-	.file-fallback { display: flex; flex-direction: column; gap: 6px; font-size: 0.88rem; color: var(--muted); }
-	.file-fallback input[type='file'] { font-size: max(16px, 1em); color: var(--text); min-height: 44px; }
-	.hidden-slot { display: none; }
 	.muted { color: var(--muted); font-size: 0.9rem; }
 	.mono { font-family: var(--font-mono); }
 	.hits { list-style: none; margin: 8px 0 0; padding: 0; border: 1px solid var(--border); border-radius: var(--shape-m); overflow: hidden; }

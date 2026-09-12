@@ -23,10 +23,11 @@ export const actions: Actions = {
 				radius_meters: String(form.get('radius_meters') ?? ''),
 				code_length: String(form.get('code_length') ?? '')
 			});
-			// Return the id and let the client navigate: an explicit goto +
-			// revalidation beats a bare form redirect (which left stale views
-			// behind and invited repeat clicks → duplicate sessions).
-			return { started: { id: s.id } };
+			// Server redirect (not client goto): works with JS enhancement AND
+			// as a native form post when scripts are blocked — the page can
+			// never sit unchanged after a successful start (which caused
+			// repeat clicks → duplicate sessions).
+			throw redirect(303, `/classes/${params.classId}/session/${s.id}`);
 		} catch (e) {
 			if (e instanceof Response) throw e;
 			return fail(400, { error: (e as Error).message });
