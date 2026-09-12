@@ -1,0 +1,10 @@
+node_modules
+.git
+.gitignore
+build
+.svelte-kit
+.data
+.env
+.env.*
+!.env.example
+vite.config.ts.timestamp-*
