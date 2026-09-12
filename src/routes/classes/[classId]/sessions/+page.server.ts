@@ -5,13 +5,13 @@ import { listSessionsBackend, setSessionDeletedBackend } from '$lib/server/sessi
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
 	if (!locals.user) throw redirect(303, '/auth/sign-in');
-	const cls = await getClassBackend(locals, locals.user.id, params.classId);
-	if (!cls) throw error(404, 'Class not found.');
 	const showRemoved = url.searchParams.get('removed') === '1';
-	const all = await listSessionsBackend(locals, locals.user.id, params.classId, {
-		includeDeleted: showRemoved
-	});
-	const counts = await classCountsBackend(locals, params.classId);
+	const [cls, all, counts] = await Promise.all([
+		getClassBackend(locals, locals.user.id, params.classId),
+		listSessionsBackend(locals, locals.user.id, params.classId, { includeDeleted: showRemoved }).catch(() => []),
+		classCountsBackend(locals, params.classId)
+	]);
+	if (!cls) throw error(404, 'Class not found.');
 	return {
 		class: cls,
 		sessions: all.filter((s) => (showRemoved ? s.deleted_at : !s.deleted_at)),

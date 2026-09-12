@@ -14,17 +14,21 @@ import { effectiveRadius } from '$lib/server/geo.js';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	if (!locals.user) throw redirect(303, '/auth/sign-in');
-	const cls = await getClassBackend(locals, locals.user.id, params.classId);
+	// Class, session, feed, and host fix are independent reads — one
+	// parallel batch instead of four sequential round-trips.
+	const [cls, session, responses, hostLoc] = await Promise.all([
+		getClassBackend(locals, locals.user.id, params.classId),
+		getSessionBackend(locals, locals.user.id, params.classId, params.sessionId),
+		listResponsesBackend(locals, locals.user.id, params.classId, params.sessionId).catch(() => []),
+		ephGet<HostLoc>(hostLocKey(params.sessionId))
+	]);
 	if (!cls) throw error(404, 'Class not found.');
-	const session = await getSessionBackend(locals, locals.user.id, params.classId, params.sessionId);
 	if (!session) throw error(404, 'Session not found.');
 	if (session.deleted_at) throw error(404, 'Session not found.');
 	if (session.status === 'closed') throw redirect(303, `/classes/${params.classId}/sessions`);
 
 	const joinUrl = joinUrlFor(cls.join_slug, qrTokenFor(session.id));
 	const qrSvg = await qrSvgFor(joinUrl);
-	const responses = await listResponsesBackend(locals, locals.user.id, params.classId, params.sessionId);
-	const hostLoc = await ephGet<HostLoc>(hostLocKey(session.id));
 	return {
 		class: cls,
 		session,

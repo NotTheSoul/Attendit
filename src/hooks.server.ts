@@ -37,15 +37,13 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	// Verified identity: getUser() hits the Auth server.
 	// Never trust getSession() for authorization.
-	const {
-		data: { user }
-	} = await event.locals.supabase.auth.getUser();
+	// Parallel: these are independent reads, sequential would cost an RTT each.
+	const [{ data: { user } }, { data: { session } }] = await Promise.all([
+		event.locals.supabase.auth.getUser(),
+		event.locals.supabase.auth.getSession()
+	]);
 
 	event.locals.user = user;
-
-	const {
-		data: { session }
-	} = await event.locals.supabase.auth.getSession();
 	event.locals.session = session;
 
 	return resolve(event, {

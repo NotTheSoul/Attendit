@@ -11,15 +11,14 @@ import {
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
 	if (!locals.user) throw redirect(303, '/auth/sign-in');
-	const cls = await getClassBackend(locals, locals.user.id, params.classId);
-	if (!cls) throw error(404, 'Class not found.');
 	const search = url.searchParams.get('q') ?? '';
 	const showRemoved = url.searchParams.get('removed') === '1';
-	const students = await listStudentsBackend(locals, locals.user.id, params.classId, {
-		search,
-		includeDeleted: showRemoved
-	});
-	const counts = await classCountsBackend(locals, params.classId);
+	const [cls, students, counts] = await Promise.all([
+		getClassBackend(locals, locals.user.id, params.classId),
+		listStudentsBackend(locals, locals.user.id, params.classId, { search, includeDeleted: showRemoved }).catch(() => []),
+		classCountsBackend(locals, params.classId)
+	]);
+	if (!cls) throw error(404, 'Class not found.');
 	return { class: cls, students, counts, search, showRemoved };
 };
 

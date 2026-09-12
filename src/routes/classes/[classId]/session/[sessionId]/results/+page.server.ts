@@ -8,11 +8,14 @@ import { logEvent } from '$lib/server/logger.js';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	if (!locals.user) throw redirect(303, '/auth/sign-in');
-	const cls = await getClassBackend(locals, locals.user.id, params.classId);
+	const [cls, session, report] = await Promise.all([
+		getClassBackend(locals, locals.user.id, params.classId),
+		getSessionBackend(locals, locals.user.id, params.classId, params.sessionId),
+		sessionReportBackend(locals, locals.user.id, params.classId, params.sessionId).catch(() => null)
+	]);
 	if (!cls) throw error(404, 'Class not found.');
-	const session = await getSessionBackend(locals, locals.user.id, params.classId, params.sessionId);
 	if (!session) throw error(404, 'Session not found.');
-	const report = await sessionReportBackend(locals, locals.user.id, params.classId, params.sessionId);
+	if (!report) throw error(404, 'Session not found.');
 	return {
 		class: cls,
 		session,

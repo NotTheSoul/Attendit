@@ -24,10 +24,21 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const sort = url.searchParams.get('sort') === 'name' ? 'name' : 'newest';
 
 	const includeDeleted = status === 'archived';
-	let classes = await listClassesBackendAsync(locals, locals.user.id, {
-		search,
-		includeDeleted
-	});
+	// Classes and sessions are independent queries — fire together so one
+	// region round-trip covers both instead of two sequential ones.
+	const [allClasses, sessionData] = await Promise.all([
+		listClassesBackendAsync(locals, locals.user.id, { search, includeDeleted }),
+		locals.supabaseConfigured && locals.supabase
+			? locals.supabase
+					.from('sessions')
+					.select('id, class_id, status, opens_at, closes_at, created_at, sheet_export_id, classes!inner(name), subjects(name)')
+					.is('deleted_at', null)
+					.order('created_at', { ascending: false })
+					.limit(10)
+					.then((r) => r.data)
+			: Promise.resolve(null)
+	]);
+	let classes = allClasses;
 	if (status === 'archived') {
 		classes = classes.filter((c) => c.deleted_at);
 	} else {
@@ -40,12 +51,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	let sessions: SessionRow[] = [];
 	if (locals.supabaseConfigured && locals.supabase) {
 		const sb = locals.supabase;
-		const { data: sessionData } = await sb
-			.from('sessions')
-			.select('id, class_id, status, opens_at, closes_at, created_at, sheet_export_id, classes!inner(name), subjects(name)')
-			.is('deleted_at', null)
-			.order('created_at', { ascending: false })
-			.limit(10);
 		const rows = (sessionData ?? []) as unknown as Array<{
 			id: string;
 			class_id: string;

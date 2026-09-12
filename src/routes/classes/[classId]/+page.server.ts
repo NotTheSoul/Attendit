@@ -10,9 +10,11 @@ import {
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	if (!locals.user) throw redirect(303, '/auth/sign-in');
-	const cls = await getClassBackend(locals, locals.user.id, params.classId);
+	const [cls, counts] = await Promise.all([
+		getClassBackend(locals, locals.user.id, params.classId),
+		classCountsBackend(locals, params.classId)
+	]);
 	if (!cls) throw error(404, 'Class not found.');
-	const counts = await classCountsBackend(locals, params.classId);
 	return { class: cls, counts };
 };
 
