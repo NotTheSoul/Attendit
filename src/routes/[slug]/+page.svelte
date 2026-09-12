@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { invalidateAll } from '$app/navigation';
+	import { onMount } from 'svelte';
 
 	let { data } = $props();
 
@@ -16,11 +17,15 @@
 	let locError: string | null = $state(null);
 	let locating = $state(false);
 	let preciseFailed = $state(false);
-	// QR entry (?t=): the scan itself proves presence — no code to type,
-	// no location trail. The session code NEVER travels in links.
-	let qrToken = $derived(page.url.searchParams.get('t') ?? '');
+	// QR entry (?t= or in-page scan): the scan itself proves presence —
+	// no code to type, no location trail. The code NEVER travels in links.
+	let qrToken = $state(page.url.searchParams.get('t') ?? '');
 	let qrMode = $derived(qrToken.length > 0);
 	let code = $state('');
+	let scanning = $state(false);
+	let scanError: string | null = $state(null);
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	let scanner: any = null;
 	let result: { status: string; message: string; distanceM: number | null } | null = $state(null);
 	let resultError: string | null = $state(null);
 
@@ -30,6 +35,12 @@
 
 	let debounce: ReturnType<typeof setTimeout> | null = null;
 	let refreshing = $state(false);
+
+	onMount(() => {
+		return () => {
+			void stopScan();
+		};
+	});
 
 	async function refresh() {
 		refreshing = true;
@@ -109,6 +120,83 @@
 			return h;
 		} catch {
 			return 'unavailable';
+		}
+	}
+
+	function tokenFromUrl(text: string): string | null {
+		try {
+			const u = new URL(text.trim());
+			return u.searchParams.get('t');
+		} catch {
+			return null;
+		}
+	}
+
+	async function stopScan() {
+		scanning = false;
+		try {
+			if (scanner) await scanner.stop();
+		} catch {
+			// already stopped — nothing to clean
+		} finally {
+			scanner = null;
+			try {
+				await scanner?.clear();
+			} catch {
+				// element may already be gone
+			}
+		}
+	}
+
+	async function startScan() {
+		scanError = null;
+		if (!window.isSecureContext) {
+			scanError = 'Camera needs HTTPS (or localhost). Type the code instead, or ask your host.';
+			return;
+		}
+		scanning = true;
+		// Lazy: the scanner library only downloads when a student taps Scan.
+		const { Html5Qrcode } = await import('html5-qrcode');
+		try {
+			scanner = new Html5Qrcode('qr-reader');
+			await scanner.start(
+				{ facingMode: 'environment' },
+				{ fps: 10, qrbox: { width: 250, height: 250 } },
+				(text: string) => {
+					const t = tokenFromUrl(text);
+					if (!t) {
+						scanError = 'That QR is not an Attendit session code. Point at the host screen.';
+						return;
+					}
+					qrToken = t;
+					void stopScan();
+				},
+				() => {
+					// frame-by-frame misses are normal — stay silent
+				}
+			);
+		} catch {
+			scanning = false;
+			scanError = 'Camera unavailable. Allow camera access, or type the code instead.';
+		}
+	}
+
+	async function scanFile(file: File | undefined) {
+		if (!file) return;
+		scanError = null;
+		const { Html5Qrcode } = await import('html5-qrcode');
+		try {
+			const tmp = new Html5Qrcode('qr-file-slot');
+			const text = await tmp.scanFile(file, true);
+			await tmp.clear();
+			const t = tokenFromUrl(text);
+			if (!t) {
+				scanError = 'That image is not an Attendit session code.';
+				return;
+			}
+			qrToken = t;
+		} catch {
+			scanError = 'Could not read a QR from that image. Try the camera or type the code.';
 		}
 	}
 
@@ -253,6 +341,29 @@
 					aria-label="Session code"
 				/>
 			</div>
+
+			<div class="row scan-row">
+				<div class="or" aria-hidden="true"><span>or</span></div>
+				{#if (!scanning)}
+					<button class="btn btn-block" type="button" onclick={() => void startScan()}>
+						Scan the host's QR
+					</button>
+				{:else}
+					<div id="qr-reader" aria-label="Camera QR scanner"></div>
+					<button class="btn btn-sm" type="button" onclick={() => void stopScan()}>Cancel scan</button>
+				{/if}
+				{#if (scanError)}<p class="error" role="alert">{scanError}</p>{/if}
+				<label class="file-fallback">
+					<span>No camera? Upload a photo of the QR instead:</span>
+					<input
+						type="file"
+						accept="image/*"
+						capture="environment"
+						onchange={(e) => void scanFile(e.currentTarget.files?.[0])}
+					/>
+				</label>
+				<div id="qr-file-slot" class="hidden-slot" aria-hidden="true"></div>
+			</div>
 			{:else}
 			<p class="muted qr-note">QR scanned — no code, no location needed. Confirm it's you above.</p>
 			{/if}
@@ -289,6 +400,16 @@
 	.row input:focus { border-color: var(--accent); outline: none; }
 	.code-input { font-size: 1.4rem; letter-spacing: 0.18em; text-align: center; }
 	.qr-note { margin: 0; }
+	.or { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 0.85rem; margin: 4px 0 12px; }
+	.or::before, .or::after { content: ''; flex: 1; border-top: 1px solid var(--border); }
+	.or span { padding: 0 4px; }
+	.scan-row { display: flex; flex-direction: column; gap: 10px; }
+	#qr-reader { width: 100%; border: 1px solid var(--border); border-radius: var(--shape-m); overflow: hidden; background: #000; }
+	#qr-reader :global(video) { width: 100%; display: block; }
+	#qr-reader :global(img) { max-width: 100%; }
+	.file-fallback { display: flex; flex-direction: column; gap: 6px; font-size: 0.88rem; color: var(--muted); }
+	.file-fallback input[type='file'] { font-size: max(16px, 1em); color: var(--text); min-height: 44px; }
+	.hidden-slot { display: none; }
 	.muted { color: var(--muted); font-size: 0.9rem; }
 	.mono { font-family: var(--font-mono); }
 	.hits { list-style: none; margin: 8px 0 0; padding: 0; border: 1px solid var(--border); border-radius: var(--shape-m); overflow: hidden; }

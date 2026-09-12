@@ -2,13 +2,24 @@
 	<title>Attendit — in-room attendance that holds up in class</title>
 </svelte:head>
 
+<script lang="ts">
+	import { page } from '$app/state';
+
+	let loggedIn = $derived(!!page.data.user);
+</script>
+
 <div class="page">
 	<section class="hero" aria-labelledby="hero-h">
 		<div>
 			<h1 id="hero-h">Run attendance in the room.<br /><span class="green">Close it with proof.</span></h1>
 			<div class="cta-row">
-				<a class="btn btn-filled" href="/auth/sign-up">Start as a host</a>
-				<a class="btn" href="/auth/sign-in">Sign in</a>
+				{#if loggedIn}
+					<a class="btn btn-filled" href="/dashboard">Open dashboard</a>
+					<a class="btn" href="/classes#create">New class</a>
+				{:else}
+					<a class="btn btn-filled" href="/auth/sign-up">Start as a host</a>
+					<a class="btn" href="/auth/sign-in">Sign in</a>
+				{/if}
 			</div>
 		</div>
 		<p>

@@ -45,7 +45,11 @@
 
 <a class="skip-link" href="#main">Skip to content</a>
 
-{#if user}
+{#if bare}
+	<main id="main">
+		{@render children()}
+	</main>
+{:else if user}
 	<div class="app">
 		<AppTopbar
 			email={user.email ?? ''}
@@ -81,11 +85,7 @@
 				<a href="/#export">Export</a>
 			</nav>
 			<div class="site-actions">
-{#if bare}
-	<main id="main">
-		{@render children()}
-	</main>
-{:else if user}
+				{#if user}
 					<a class="btn btn-filled btn-sm" href="/dashboard">Open dashboard</a>
 				{:else}
 					<a class="btn btn-sm" href="/auth/sign-in">Sign in</a>
